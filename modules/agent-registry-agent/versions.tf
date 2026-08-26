@@ -28,7 +28,7 @@ terraform {
     }
     # Match the google-nightly version used in the root versions.tf
     google-nightly = {
-      source  = "hashicorp/google-nightly"
+      source  = "registry.terraform.io/hashicorp/google-nightly"
       version = "2026.4.2-7.26.0"
     }
     time = {

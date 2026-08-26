@@ -1,33 +1,29 @@
 # terraform-google-agent-registry
 
 ## Description
-The Agent Registry Service is a management plane API that acts as a unified catalog and single source of truth for AI agents and Model Context Protocol (MCP) servers. It simplifies and automates the management of agent definitions and tool specifications, allowing developers to securely discover and orchestrate tool usage within the Agentic ecosystem.
 
-This module provides support for:
-- Provisioning and managing Agent Registry Services.
-- Retrieving agent metadata and functional capabilities.
-- Secure discovery and retrieval of MCP server tool definitions.
-- Streamlining the fetching of secure endpoint specifications.
+Registers A2A agents, MCP servers, and skills in the GCP Agent Registry
+(`agentregistry.googleapis.com`). Forked from the upstream Google module and
+extended with skill registration support (v1alpha REST API — no provider
+resource exists yet).
 
-### Tagline
-Terraform module for managing Google Cloud Agent Registry
-### Detailed
-This module simplifies and automates the management of AI agent definitions and Model Context Protocol (MCP) servers to assert tool capabilities and manage secure discovery. It facilitates the orchestrated usage of tools within the Agentic ecosystem by providing a single source of truth for all deployed agents.
+The module accepts raw file contents and handles all transformation internally:
 
-The resources and data sources that this module will manage include:
-- **Agent Registry Service**: A foundational blueprint for provisioning and managing the Registry lifecycle.
-- **Agent Metadata**: Facilitates the retrieval of functional capabilities for registered agents.
-- **MCP Server Definitions**: Enables the discovery and retrieval of standardized tool definitions.
-- **Secure Endpoints**: Streamlines the fetching of connection specifications for agent execution.
+- **Agents** (`agents/*/agent.yaml`) — parsed and registered as A2A agent cards.
+- **MCP servers** (`mcp/*/mcp.yaml`) — parsed and registered as MCP server services.
+- **Skills** (`skills/*.md`) — zipped, base64-encoded, and registered via REST.
+  Skill IDs use a `{clan}-{skill}` convention; the API prepends `private-` automatically.
 
 ### PreDeploy
-To deploy this blueprint, the following prerequisites must be met in the target Google Cloud project:
 
-1. **Enable APIs**: The `agentregistry.googleapis.com` and `apphub.googleapis.com` APIs must be enabled.
-2. **Permissions**: The service account or user identity provisioning these resources requires the following roles:
-    - **Agent Registry API Admin** (`roles/agentregistry.admin`).
-    - **Service Usage Admin** (`roles/serviceusage.serviceUsageAdmin`) to enable the required APIs.
-3. **Billing**: An active billing account must be linked to the project.
+1. **Enable APIs**: `agentregistry.googleapis.com` must be enabled in the project.
+2. **Permissions**: the identity running Terraform requires `roles/agentregistry.admin`.
+3. **Python 3.10+**: required on the machine running `apply` for the skill registration script.
+
+> **Note on skill deletion**: there is no Terraform provider resource for skills yet.
+> Removing a skill `.md` file and applying will drop the state entry but will **not**
+> delete the skill from the registry. Delete it manually via the GCP console or the
+> `agentregistry.googleapis.com/v1alpha` REST API.
 
 ## Architecture
 The Agent Registry integrates with several Google Cloud services to provide a secure management boundary for AI agents.
@@ -50,34 +46,110 @@ Deployment: Y mins
 
 ## Usage
 
-Basic usage of this module is as follows:
-
-```hcl
-module "agent_registry_service" {
-  source     = "vandnagarggoogle/agent-registry/google//modules/agent-registry-service"
-  project_id = var.project_id
-  location   = "us-central1"
-  service_id = "test-service-${var.random_string}"
-  interfaces = [
-  { "protocol_binding" = "HTTP_JSON", "url" = "https://api.stripe.com" }]
-  endpoint_spec = {
-    type = "NO_SPEC"
-  }
-}
+Each clan's `agent-registry/` directory follows this layout:
 
 ```
+agent-registry/
+  agents/
+    my-agent/
+      agent.yaml       # A2A agent metadata and skills list
+  mcp/
+    my-mcp-server/
+      mcp.yaml         # MCP server metadata, interfaces, and tool spec
+  skills/
+    clan-skill-name.md # Skill instructions with YAML frontmatter
+  terragrunt.hcl
+```
 
-Functional examples are included in the
-[examples](./examples/) directory.
+The `terragrunt.hcl` is identical across all clans — it just reads the files:
+
+```hcl
+inputs = {
+  project_id = "my-project"
+
+  agents = {
+    for f in fileset("${get_terragrunt_dir()}/agents", "*/agent.yaml") :
+    dirname(f) => file("${get_terragrunt_dir()}/agents/${f}")
+  }
+
+  mcps = {
+    for f in fileset("${get_terragrunt_dir()}/mcp", "*/mcp.yaml") :
+    dirname(f) => file("${get_terragrunt_dir()}/mcp/${f}")
+  }
+
+  skills = {
+    for f in fileset("${get_terragrunt_dir()}/skills", "*.md") :
+    trimsuffix(f, ".md") => file("${get_terragrunt_dir()}/skills/${f}")
+  }
+}
+```
+
+### agent.yaml format
+
+```yaml
+name: my-agent                         # used in the A2A card
+display_name: My Agent                 # shown in the registry UI (max 63 chars)
+description: What this agent does.
+url: https://my-agent.retailsvc.com
+version: 0.1.0
+location: europe-west1
+skills:
+  - id: clan-skill-name
+    name: Human readable skill name
+    description: What this skill does.
+    tags: [tag1, tag2]
+    examples:
+      - Example prompt that triggers this skill
+```
+
+### mcp.yaml format
+
+```yaml
+location: europe-west1
+display_name: My MCP Server            # max 63 chars
+description: What this MCP server exposes.
+interfaces:
+  - protocol_binding: JSONRPC          # JSONRPC or GRPC (HTTP_JSON not supported by backend)
+    url: https://my-mcp.retailsvc.com
+mcp_server_spec:
+  type: TOOL_SPEC                      # NO_SPEC or TOOL_SPEC
+  content: |
+    { "tools": [ ... ] }
+```
+
+### skill .md format
+
+```markdown
+---
+name: clan-skill-name
+metadata:
+  category: DeveloperTooling
+description: One-line description shown in the registry.
+---
+
+# Skill Title
+
+Full instruction content for the agent...
+```
 
 <!-- BEGINNING OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
 ## Inputs
 
-No inputs.
+| Name | Description | Type | Required |
+|------|-------------|------|----------|
+| `project_id` | The GCP project ID to deploy to. | `string` | yes |
+| `agents` | A2A agents to register, keyed by agent directory name. Value is raw `agent.yaml` content. | `map(string)` | no |
+| `mcps` | MCP servers to register, keyed by service directory name. Value is raw `mcp.yaml` content. | `map(string)` | no |
+| `skills` | Skills to register, keyed by skill ID. Value is raw `.md` content with YAML frontmatter. | `map(string)` | no |
 
 ## Outputs
 
-No outputs.
+| Name | Description |
+|------|-------------|
+| `ids` | Map of service ID to Agent Registry Service resource ID. |
+| `services` | Full Agent Registry Service resource attributes, keyed by service ID. |
+| `display_names` | Map of service ID to display name. |
+| `discovery_filters` | Map of service ID to pre-formatted discovery filter string. |
 
 <!-- END OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
 
@@ -87,31 +159,20 @@ These sections describe requirements for using this module.
 
 ### Software
 
-The following dependencies must be available:
-
-- [Terraform][terraform] v0.13
-- [Terraform Provider for GCP][terraform-provider-gcp] plugin v3.0
+- OpenTofu >= 1.6 or Terraform >= 1.3
+- Google provider >= 6.0
+- Python 3.10+ on the machine running `apply` (for skill registration)
 
 ### Service Account
 
 A service account with the following roles must be used to provision
 the resources of this module:
 
-- Storage Admin: `roles/storage.admin`
-
-The [Project Factory module][project-factory-module] and the
-[IAM module][iam-module] may be used in combination to provision a
-service account with the necessary roles applied.
+- `roles/agentregistry.admin` on the project
 
 ### APIs
 
-A project with the following APIs enabled must be used to host the
-resources of this module:
-
-- Google Cloud Storage JSON API: `storage-api.googleapis.com`
-
-The [Project Factory module][project-factory-module] can be used to
-provision a project with the necessary APIs enabled.
+- `agentregistry.googleapis.com`
 
 ## Contributing
 

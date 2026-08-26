@@ -19,12 +19,28 @@
 module "agent_registry_service" {
   source     = "../../modules/agent-registry-service"
   project_id = var.project_id
-  location   = "us-central1"
-  service_id = "test-service-${var.random_string}"
-  display_name = "test-service-${var.random_string}"
-  interfaces = [
-  { "protocol_binding" = "HTTP_JSON", "url" = "https://api.stripe.com" }]
-  endpoint_spec = {
-    type = "NO_SPEC"
+
+  services = {
+    "test-service-${var.random_string}" = {
+      location     = "us-central1"
+      display_name = "test-service-${var.random_string}"
+      interfaces = [
+        { "protocol_binding" = "HTTP_JSON", "url" = "https://api.stripe.com" }
+      ]
+      endpoint_spec = {
+        type = "NO_SPEC"
+      }
+    }
+    "test-mcp-server-${var.random_string}" = {
+      location     = "us-central1"
+      display_name = "test-mcp-server-${var.random_string}"
+      interfaces = [
+        { "protocol_binding" = "JSONRPC", "url" = "https://example.com" }
+      ]
+      mcp_server_spec = {
+        type    = "TOOL_SPEC"
+        content = jsonencode({ tools = [] })
+      }
+    }
   }
 }

@@ -24,7 +24,7 @@ output "location" {
   value       = "us-central1"
 }
 
-output "id" {
-  description = "The ID of the provisioned service."
-  value       = module.agent_registry_service.id
+output "ids" {
+  description = "Map of service_id to the ID of the provisioned service."
+  value       = module.agent_registry_service.ids
 }
