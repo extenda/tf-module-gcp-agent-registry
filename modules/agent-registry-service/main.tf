@@ -15,15 +15,16 @@
  */
 
 resource "google_agent_registry_service" "this" {
-  provider     = google-nightly
-  location     = var.location
-  service_id   = var.service_id
+  for_each = var.services
+
+  location     = each.value.location
+  service_id   = each.key
   project      = var.project_id
-  display_name = var.display_name
-  description  = var.description
+  display_name = each.value.display_name
+  description  = each.value.description
 
   dynamic "interfaces" {
-    for_each = var.interfaces
+    for_each = each.value.interfaces
     content {
       url              = interfaces.value.url
       protocol_binding = interfaces.value.protocol_binding
@@ -32,7 +33,7 @@ resource "google_agent_registry_service" "this" {
 
   # The following blocks are mutually exclusive as per the 'exactly_one_of' constraint
   dynamic "agent_spec" {
-    for_each = var.agent_spec != null ? [var.agent_spec] : []
+    for_each = each.value.agent_spec != null ? [each.value.agent_spec] : []
     content {
       type    = agent_spec.value.type
       content = agent_spec.value.content
@@ -40,7 +41,7 @@ resource "google_agent_registry_service" "this" {
   }
 
   dynamic "mcp_server_spec" {
-    for_each = var.mcp_server_spec != null ? [var.mcp_server_spec] : []
+    for_each = each.value.mcp_server_spec != null ? [each.value.mcp_server_spec] : []
     content {
       type    = mcp_server_spec.value.type
       content = mcp_server_spec.value.content
@@ -48,7 +49,7 @@ resource "google_agent_registry_service" "this" {
   }
 
   dynamic "endpoint_spec" {
-    for_each = var.endpoint_spec != null ? [var.endpoint_spec] : []
+    for_each = each.value.endpoint_spec != null ? [each.value.endpoint_spec] : []
     content {
       type = endpoint_spec.value.type
     }
@@ -57,6 +58,7 @@ resource "google_agent_registry_service" "this" {
 
 # time change is done in order to remove the flacky ness in resouce not found in case of immediate registration
 resource "time_sleep" "wait_after_registration" {
+  for_each        = var.services
   depends_on      = [google_agent_registry_service.this]
   create_duration = "5s"
 }

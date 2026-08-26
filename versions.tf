@@ -16,28 +16,4 @@
 
 terraform {
   required_version = ">= 1.3"
-
-  required_providers {
-    google = {
-      source  = "hashicorp/google"
-      version = ">= 6.6.0, < 8"
-    }
-    google-beta = {
-      source  = "hashicorp/google-beta"
-      version = ">= 6.6.0, < 8"
-    }
-    # Add the google-nightly provider with the latest version
-    google-nightly = {
-      source  = "hashicorp/google-nightly"
-      version = "2026.3.26-7.25.0"
-    }
-  }
-
-  provider_meta "google" {
-    module_name = "blueprints/terraform/terraform-google-agent-registry/v0.3.4"
-  }
-
-  provider_meta "google-beta" {
-    module_name = "blueprints/terraform/terraform-google-agent-registry/v0.3.4"
-  }
 }

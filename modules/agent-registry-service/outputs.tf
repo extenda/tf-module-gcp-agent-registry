@@ -18,51 +18,33 @@ data "google_project" "project" {
   project_id = var.project_id
 }
 
-output "id" {
-  description = "The ID of the Agent Registry Service."
-  value       = google_agent_registry_service.this.id
+output "ids" {
+  description = "Map of service_id to Agent Registry Service ID."
+  value       = { for k, v in google_agent_registry_service.this : k => v.id }
 }
 
-output "create_time" {
-  description = "The timestamp when the resource was created."
-  value       = google_agent_registry_service.this.create_time
+output "services" {
+  description = "Full Agent Registry Service resource attributes, keyed by service_id."
+  value       = google_agent_registry_service.this
 }
 
-output "update_time" {
-  description = "The timestamp when the resource was updated."
-  value       = google_agent_registry_service.this.update_time
+output "display_names" {
+  description = "Map of service_id to the user-defined display name of the service."
+  value       = { for k, v in google_agent_registry_service.this : k => v.display_name }
 }
 
-output "agent" {
-  description = "Details of the Agent configuration."
-  value       = length(google_agent_registry_service.this.agent_spec) > 0 ? google_agent_registry_service.this.agent_spec[0] : null
-}
-
-output "mcp_server" {
-  description = "Details of the MCP Server configuration."
-  value       = length(google_agent_registry_service.this.mcp_server_spec) > 0 ? google_agent_registry_service.this.mcp_server_spec[0] : null
-}
-
-output "endpoint" {
-  description = "Details of the Endpoint configuration."
-  value       = length(google_agent_registry_service.this.endpoint_spec) > 0 ? google_agent_registry_service.this.endpoint_spec[0] : null
-}
-
-output "display_name" {
-  description = "The user-defined display name of the service."
-  value       = google_agent_registry_service.this.display_name
-}
-
-output "discovery_filter" {
-  description = "A pre-formatted filter string for discovery modules."
-  value = format("%s:\"urn:%s:projects-%s:projects:%s:locations:%s:agentregistry:services:%s\"",
-    length(google_agent_registry_service.this.agent_spec) > 0 ? "agentId" : (length(google_agent_registry_service.this.mcp_server_spec) > 0 ? "mcpServerId" : "endpointId"),
-    length(google_agent_registry_service.this.agent_spec) > 0 ? "agent" : (length(google_agent_registry_service.this.mcp_server_spec) > 0 ? "mcp" : "endpoint"),
-    data.google_project.project.number,
-    data.google_project.project.number,
-    var.location,
-    basename(google_agent_registry_service.this.id)
-  )
+output "discovery_filters" {
+  description = "Map of service_id to a pre-formatted filter string for discovery modules."
+  value = {
+    for k, v in google_agent_registry_service.this : k => format("%s:\"urn:%s:projects-%s:projects:%s:locations:%s:agentregistry:services:%s\"",
+      length(v.agent_spec) > 0 ? "agentId" : (length(v.mcp_server_spec) > 0 ? "mcpServerId" : "endpointId"),
+      length(v.agent_spec) > 0 ? "agent" : (length(v.mcp_server_spec) > 0 ? "mcp" : "endpoint"),
+      data.google_project.project.number,
+      data.google_project.project.number,
+      var.services[k].location,
+      basename(v.id)
+    )
+  }
 
   depends_on = [
     google_agent_registry_service.this,

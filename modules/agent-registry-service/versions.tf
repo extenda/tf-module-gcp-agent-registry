@@ -18,18 +18,10 @@ terraform {
   required_version = ">= 1.3"
 
   required_providers {
+    # google_agent_registry_service is GA as of hashicorp/google v7.39.0 - no google-nightly needed.
     google = {
       source  = "hashicorp/google"
-      version = ">= 6.6.0, < 8"
-    }
-    google-beta = {
-      source  = "hashicorp/google-beta"
-      version = ">= 6.6.0, < 8"
-    }
-    # Match the google-nightly version used in the root versions.tf
-    google-nightly = {
-      source  = "hashicorp/google-nightly"
-      version = "2026.4.2-7.26.0"
+      version = ">= 7.39.0, < 8"
     }
     time = {
       source  = "hashicorp/time"
@@ -38,9 +30,6 @@ terraform {
   }
 
   provider_meta "google" {
-    module_name = "blueprints/terraform/terraform-google-agent-registry:agent-registry-service/v0.3.4"
-  }
-  provider_meta "google-beta" {
     module_name = "blueprints/terraform/terraform-google-agent-registry:agent-registry-service/v0.3.4"
   }
 }
